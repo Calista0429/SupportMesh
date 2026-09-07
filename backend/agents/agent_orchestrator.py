@@ -1,19 +1,21 @@
 """
-亮点：多 Agent 路由与编排
+Highlight: multi-agent routing and orchestration
 
-核心问题：多 Agent 情况下如何做 Routing？
+Core question: with several agents, how do you route?
 
-路由策略（三层决策）：
-  1. 意图路由 —— 根据 IntentCategory 直接映射到专属 Agent
-  2. 性能路由 —— 同类 Agent 有多个时，选成功率最高、延迟最低的
-  3. 降级路由 —— 专属 Agent 不可用时，自动降级到 GeneralAgent
+Routing strategy (three tiers):
+  1. Intent routing -- map an IntentCategory straight to its dedicated agent
+  2. Performance routing -- with several agents of one type, pick the one with
+     the highest success rate and lowest latency
+  3. Fallback routing -- degrade to GeneralAgent when the dedicated one is down
 
-并行协作：
-  - 复杂问题（如"技术问题 + 账单问题"）可同时派发给多个 Agent
-  - 结果由 Orchestrator 合并后返回
+Parallel collaboration:
+  - A compound question (a technical problem plus a billing problem, say) can
+    be dispatched to several agents at once
+  - The orchestrator merges their answers before returning
 
-升级机制：
-  - Agent 置信度低于阈值 → 自动升级到更高级 Agent 或转人工
+Escalation:
+  - Confidence below the threshold escalates to a higher tier or to a human
 """
 import asyncio
 import json
@@ -28,22 +30,23 @@ from anthropic import AsyncAnthropic
 
 from core.intent_recognizer import IntentCategory, IntentRecognizer, UrgencyLevel
 from core.llm_utils import extract_text_content
+from core.text_matching import keyword_matches
 
 logger = logging.getLogger(__name__)
 
 
-# ── 数据结构 ──────────────────────────────────────────────────────────────────
+# ── Data structures ───────────────────────────────────────────────────────────
 
 class AgentType(Enum):
-    GENERAL   = "general"    # 通用客服
-    TECHNICAL = "technical"  # 技术支持
-    BILLING   = "billing"    # 账单/退款
-    ESCALATION = "escalation" # 人工升级（占位）
+    GENERAL   = "general"    # general customer service
+    TECHNICAL = "technical"  # technical support
+    BILLING   = "billing"    # billing and refunds
+    ESCALATION = "escalation" # human escalation (placeholder)
 
 
 @dataclass
 class AgentStats:
-    """Agent 运行时统计，供 Monitor 和路由决策使用。"""
+    """Runtime agent statistics, used by the Monitor and by routing decisions."""
     total:     int   = 0
     success:   int   = 0
     total_ms:  float = 0.0
@@ -58,7 +61,7 @@ class AgentStats:
         return self.total_ms / self.total if self.total else 0.0
 
     def routing_score(self) -> float:
-        """路由评分：成功率高、延迟低的 Agent 得分高。"""
+        """Routing score: high success rate and low latency score higher."""
         latency_score = 1.0 / (1.0 + self.avg_ms / 1000)
         base_score = self.success_rate * 0.7 + latency_score * 0.3
         return base_score * max(0.0, 1.0 - self.monitor_penalty)
@@ -71,7 +74,7 @@ class AgentResponse:
     success:     bool
     confidence:  float = 1.0
     latency_ms:  float = 0.0
-    escalate:    bool  = False   # 是否需要升级
+    escalate:    bool  = False   # whether escalation is required
 
 
 @dataclass
@@ -79,8 +82,8 @@ class Request:
     message:     str
     user_id:     str
     conv_id:     str
-    context:     str = ""        # 来自 MemoryManager 的格式化上下文
-    history:     Optional[List[Dict[str, str]]] = None  # 对话历史，传给意图识别
+    context:     str = ""        # formatted context from MemoryManager
+    history:     Optional[List[Dict[str, str]]] = None  # dialogue history for intent recognition
     entities:    Dict[str, List[str]] = field(default_factory=dict)
     intent:      Optional[IntentCategory] = None
     intent_group: Optional[str] = None
@@ -106,7 +109,7 @@ class OrchestratorResult:
 
 @dataclass
 class RoutingDecision:
-    """一次请求的结构化路由决策。"""
+    """The structured routing decision for one request."""
     primary_agent: AgentType
     supporting_agents: List[AgentType] = field(default_factory=list)
     reason: str = ""
@@ -121,10 +124,10 @@ class RoutingDecision:
         return bool(self.supporting_agents)
 
 
-# ── 基础 Agent ────────────────────────────────────────────────────────────────
+# ── Base agent ────────────────────────────────────────────────────────────────
 
 class BaseAgent:
-    """所有 Agent 的基类，封装 LLM 调用和统计。"""
+    """Base class for every agent, wrapping the LLM call and its statistics."""
 
     agent_type: AgentType
     system_prompt: str
@@ -154,10 +157,10 @@ class BaseAgent:
         except Exception as ex:
             ms = (time.monotonic() - t0) * 1000
             self.stats.total_ms += ms
-            logger.error(f"{self.agent_type.value} 处理失败: {ex}")
+            logger.error(f"{self.agent_type.value} failed to handle the request: {ex}")
             return AgentResponse(
                 agent_type=self.agent_type,
-                content="抱歉，处理您的请求时出现问题，请稍后重试。",
+                content="Sorry, something went wrong handling your request. Please try again shortly.",
                 success=False,
                 latency_ms=ms,
             )
@@ -168,12 +171,12 @@ class BaseAgent:
 
         messages = []
         if req.context:
-            messages.append({"role": "user", "content": f"[背景信息]\n{_clean(req.context)}"})
-            messages.append({"role": "assistant", "content": "好的，我已了解背景信息。"})
+            messages.append({"role": "user", "content": f"[Background]\n{_clean(req.context)}"})
+            messages.append({"role": "assistant", "content": "Understood, I have the background."})
         if req.entities:
             entities_text = json.dumps(req.entities, ensure_ascii=False)
-            messages.append({"role": "user", "content": f"[结构化实体]\n{_clean(entities_text)}"})
-            messages.append({"role": "assistant", "content": "好的，我会结合这些结构化实体处理。"})
+            messages.append({"role": "user", "content": f"[Structured entities]\n{_clean(entities_text)}"})
+            messages.append({"role": "assistant", "content": "Understood, I will take these entities into account."})
         messages.append({"role": "user", "content": _clean(req.message)})
 
         resp = await self._client.messages.create(
@@ -185,57 +188,57 @@ class BaseAgent:
         return extract_text_content(resp.content)
 
     def _build_system_prompt(self, req: Request) -> str:
-        """把动态加载的 Skills 拼入 system prompt，让业务规则随请求生效。"""
+        """Splice hot-loaded Skills into the system prompt so business rules apply per request."""
         if self._skill_manager is None:
             return self.system_prompt
         skill_prompt = self._skill_manager.prompt_for(req.message, self.agent_type.value)
         if not skill_prompt:
             return self.system_prompt
-        return f"{self.system_prompt}\n\n[动态 Skills]\n{skill_prompt}"
+        return f"{self.system_prompt}\n\n[Dynamic Skills]\n{skill_prompt}"
 
     def _needs_escalation(self, content: str) -> bool:
-        """检测 Agent 是否建议升级（简单关键词检测）。"""
-        keywords = ["转人工", "人工客服", "escalate", "specialist", "无法处理"]
-        return any(kw in content for kw in keywords)
+        """Detect whether the agent is asking to escalate (simple keyword check)."""
+        keywords = ["human agent", "live agent", "escalate", "specialist", "cannot handle"]
+        return any(keyword_matches(kw, content.lower()) for kw in keywords)
 
 
 class GeneralAgent(BaseAgent):
     agent_type    = AgentType.GENERAL
     system_prompt = (
-        "你是 EchoMind 智能客服。友好、简洁地回答用户问题。"
-        "如果问题超出你的能力范围，明确说明并建议转接专业客服。"
+        "You are SupportMesh, a customer-service assistant. Answer the user in a friendly, concise way. "
+        "When a question falls outside what you can do, say so plainly and suggest a specialist handoff."
     )
 
 
 class TechnicalAgent(BaseAgent):
     agent_type    = AgentType.TECHNICAL
     system_prompt = (
-        "你是技术支持专家。专注于：故障排查、错误诊断、系统配置。"
-        "提供清晰的步骤化解决方案。遇到需要后台操作的问题，说明需要升级处理。"
+        "You are a technical support specialist. Focus on troubleshooting, error diagnosis and system configuration. "
+        "Give clear, step-by-step solutions. When something needs backend access, say it must be escalated."
     )
 
 
 class BillingAgent(BaseAgent):
     agent_type    = AgentType.BILLING
     system_prompt = (
-        "你是账单服务专家。专注于：账单查询、退款申请、发票问题、订阅管理。"
-        "对财务问题保持准确和专业。涉及实际退款操作时，说明需要人工审核。"
+        "You are a billing specialist. Focus on billing questions, refund requests, invoices and subscriptions. "
+        "Stay accurate and professional on financial matters. Any actual refund needs human review -- say so."
     )
 
 
-# ── 编排器 ────────────────────────────────────────────────────────────────────
+# ── Orchestrator ──────────────────────────────────────────────────────────────
 
 class AgentOrchestrator:
     """
-    多 Agent 编排器。
+    The multi-agent orchestrator.
 
-    路由逻辑（三层）：
-      1. 意图 → Agent 类型映射
-      2. 同类多实例时按 routing_score() 选最优
-      3. 专属 Agent 失败时降级到 GeneralAgent
+    Routing logic (three tiers):
+      1. Map intent to an agent type
+      2. With several instances of that type, pick the best routing_score()
+      3. Degrade to GeneralAgent when the dedicated agent fails
     """
 
-    # 意图 → Agent 类型的静态映射（路由表）
+    # Static intent-to-agent-type mapping (the routing table)
     _INTENT_ROUTING: Dict[IntentCategory, AgentType] = {
         IntentCategory.TECHNICAL:  AgentType.TECHNICAL,
         IntentCategory.TECHNICAL_LOGIN: AgentType.TECHNICAL,
@@ -248,7 +251,7 @@ class AgentOrchestrator:
         IntentCategory.ACCOUNT_SECURITY: AgentType.BILLING,
         IntentCategory.ESCALATION: AgentType.ESCALATION,
         IntentCategory.HUMAN_HANDOFF: AgentType.ESCALATION,
-        # 其余意图 → GENERAL（默认）
+        # Everything else falls through to GENERAL
     }
 
     def __init__(
@@ -266,7 +269,7 @@ class AgentOrchestrator:
         self._intent_recognizer = IntentRecognizer(api_key=api_key, base_url=base_url, model=model)
         self._skill_manager = skill_manager
 
-        # Agent 池：每种类型可有多个实例（水平扩展）
+        # Agent pool: each type may hold several instances (horizontal scaling)
         self._pool: Dict[AgentType, List[BaseAgent]] = {
             AgentType.GENERAL:   [GeneralAgent(client, model, skill_manager)],
             AgentType.TECHNICAL: [TechnicalAgent(client, model, skill_manager)],
@@ -274,7 +277,7 @@ class AgentOrchestrator:
         }
 
     def set_skill_manager(self, skill_manager: Optional[Any]) -> None:
-        """更新 SkillManager 引用，供运行时重载或测试替换使用。"""
+        """Swap the SkillManager reference, for runtime reloads or test doubles."""
         self._skill_manager = skill_manager
         for agents in self._pool.values():
             for agent in agents:
@@ -285,19 +288,19 @@ class AgentOrchestrator:
         message: str,
         history: Optional[List[Dict[str, str]]] = None,
     ):
-        """对外暴露意图识别，供 API 层先判断是否需要 RAG 等前置能力。"""
+        """Expose intent recognition so the API layer can decide upfront whether RAG is needed."""
         return await self._intent_recognizer.recognize(message, history=history)
 
-    # ── 主入口 ────────────────────────────────────────────────────────────────
+    # ── Main entry point ──────────────────────────────────────────────────────
 
     async def run(self, req: Request) -> OrchestratorResult:
         """
-        处理一次请求的完整流程：
-          意图识别 → 路由选 Agent → 执行 → 检查升级 → 返回结果
+        The full request-handling flow:
+          recognize intent -> route to an agent -> execute -> check escalation -> return
         """
         t0 = time.monotonic()
 
-        # 1. 意图识别（如果调用方已识别则跳过）
+        # 1. Intent recognition (skipped when the caller already resolved it)
         if req.intent is None:
             intent_result = await self._intent_recognizer.recognize(req.message, history=req.history)
             req.intent  = intent_result.intent
@@ -308,34 +311,35 @@ class AgentOrchestrator:
         if self._needs_clarification(req):
             return OrchestratorResult(
                 request_id=req.request_id,
-                response="我还不能确定您要处理的是哪类问题。请补充一下是订单物流、退款账单、账户资料，还是技术故障？",
+                response="I am not yet sure which area this falls under. Is it about an order or delivery, a refund or billing, your account details, or a technical fault?",
                 agent_type=AgentType.GENERAL,
                 intent=req.intent,
                 escalated=False,
                 latency_ms=(time.monotonic() - t0) * 1000,
                 agent_types=[AgentType.GENERAL],
                 primary_agent=AgentType.GENERAL,
-                routing_reason="低置信度 OTHER 意图，先澄清用户需求",
+                routing_reason="low-confidence OTHER intent; clarify the request first",
                 routing_confidence=req.intent_confidence,
             )
 
-        # 复杂问题自动并行协作，例如同一句同时涉及登录故障和扣款/退款。
+        # Compound questions collaborate in parallel -- one sentence covering both a
+        # login failure and a double charge, for instance.
         decision = self._route_decision(req)
         if decision.multi_agent:
             return await self.run_parallel(req, decision)
 
-        # 2. 执行主 Agent（含降级）
+        # 2. Run the primary agent (with fallback)
         response = await self._execute(req, decision.primary_agent)
 
-        # 4. 升级检查
+        # 4. Escalation check
         escalated = False
         if response.escalate or req.urgency == UrgencyLevel.CRITICAL or req.intent in (
             IntentCategory.ESCALATION,
             IntentCategory.HUMAN_HANDOFF,
         ):
             escalated = True
-            logger.warning(f"请求 {req.request_id} 触发升级: urgency={req.urgency}")
-            # 生产环境：此处创建工单、通知人工客服
+            logger.warning(f"Request {req.request_id} triggered escalation: urgency={req.urgency}")
+            # In production this is where you would open a ticket and page a human
 
         return OrchestratorResult(
             request_id=req.request_id,
@@ -353,22 +357,22 @@ class AgentOrchestrator:
 
     async def run_parallel(self, req: Request, decision: RoutingDecision) -> OrchestratorResult:
         """
-        并行派发给多个 Agent，合并结果。
-        适用于复杂问题（如同时涉及技术和账单）。
+        Dispatch to several agents in parallel and merge their answers.
+        Used for compound questions that span, say, technical and billing topics.
         """
         t0 = time.monotonic()
         agent_types = decision.agent_types
         tasks = [self._execute(req, at) for at in agent_types]
         responses = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # 合并：主 Agent 在前，辅助 Agent 在后。
+        # Merge: primary agent first, supporting agents after.
         parts = []
         for r in responses:
             if isinstance(r, AgentResponse) and r.success:
-                role = "主处理" if r.agent_type == decision.primary_agent else "辅助处理"
+                role = "primary" if r.agent_type == decision.primary_agent else "supporting"
                 parts.append(f"[{r.agent_type.value} - {role}]\n{r.content}")
 
-        combined = "\n\n".join(parts) if parts else "抱歉，所有 Agent 均处理失败。"
+        combined = "\n\n".join(parts) if parts else "Sorry, every agent failed to handle this request."
         escalated = any(isinstance(r, AgentResponse) and r.escalate for r in responses)
 
         return OrchestratorResult(
@@ -388,21 +392,21 @@ class AgentOrchestrator:
             routing_confidence=decision.confidence,
         )
 
-    # ── 路由逻辑 ──────────────────────────────────────────────────────────────
+    # ── Routing logic ─────────────────────────────────────────────────────────
 
     def _route(self, intent: Optional[IntentCategory], urgency: Optional[UrgencyLevel]) -> AgentType:
         """
-        三层路由决策：
-          1. 意图映射
-          2. 紧急度覆盖（CRITICAL 直接升级）
-          3. 默认 GENERAL
+        Three-tier routing decision:
+          1. Intent mapping
+          2. Urgency override (CRITICAL escalates immediately)
+          3. Default to GENERAL
         """
         if urgency == UrgencyLevel.CRITICAL:
             return AgentType.ESCALATION
 
         if intent and intent in self._INTENT_ROUTING:
             target = self._INTENT_ROUTING[intent]
-            # 如果目标类型有可用实例则使用，否则降级
+            # Use the target type when an instance is available, otherwise degrade
             if target in self._pool and self._pool[target]:
                 return target
 
@@ -410,22 +414,23 @@ class AgentOrchestrator:
 
     def _route_decision(self, req: Request) -> RoutingDecision:
         """
-        结构化路由决策。
+        The structured routing decision.
 
-        先处理紧急/转人工，再用领域分数决定主 Agent 和辅助 Agent。
-        这样可以表达“主处理 + 辅助诊断”，避免关键词命中后无主次地拼接。
+        Urgency and human handoff come first, then domain scores pick the primary
+        agent and its supporting agents. That lets the result express "primary plus
+        supporting diagnosis" instead of concatenating whatever keywords matched.
         """
         if req.urgency == UrgencyLevel.CRITICAL:
             return RoutingDecision(
                 primary_agent=AgentType.ESCALATION,
-                reason="紧急度为 CRITICAL，触发升级路由",
+                reason="urgency is CRITICAL, routing to escalation",
                 confidence=1.0,
             )
 
         if req.intent in (IntentCategory.ESCALATION, IntentCategory.HUMAN_HANDOFF):
             return RoutingDecision(
                 primary_agent=AgentType.ESCALATION,
-                reason=f"意图为 {req.intent.value if req.intent else 'unknown'}，触发升级路由",
+                reason=f"intent is {req.intent.value if req.intent else 'unknown'}, routing to escalation",
                 confidence=max(req.intent_confidence, 0.8),
             )
 
@@ -438,7 +443,7 @@ class AgentOrchestrator:
         if not available_scores:
             return RoutingDecision(
                 primary_agent=AgentType.GENERAL,
-                reason="无可用专属 Agent，降级到 GeneralAgent",
+                reason="no dedicated agent available, degrading to GeneralAgent",
                 confidence=0.1,
             )
 
@@ -459,7 +464,7 @@ class AgentOrchestrator:
         )
 
     def _domain_scores(self, req: Request) -> Dict[AgentType, float]:
-        """按意图、关键词和实体为各领域 Agent 打分。"""
+        """Score each domain agent by intent, keywords and entities."""
         msg = req.message.lower()
         scores = {
             AgentType.GENERAL: 0.1,
@@ -496,13 +501,13 @@ class AgentOrchestrator:
         ):
             scores[AgentType.BILLING] += 0.75
 
-        technical_kws = ["崩溃", "报错", "error", "crash", "无法登录", "登录失败", "500", "401", "验证码"]
-        billing_kws = ["退款", "退货", "扣款", "发票", "账单", "支付", "订阅", "refund", "invoice", "多扣"]
-        general_kws = ["订单", "物流", "快递", "配送", "会员", "积分", "咨询", "帮助"]
+        technical_kws = ["crash", "error", "bug", "cannot log in", "can't log in", "login failed", "500", "401", "verification code"]
+        billing_kws = ["refund", "return", "charge", "charged", "invoice", "bill", "billing", "payment", "subscription", "overcharged"]
+        general_kws = ["order", "tracking", "parcel", "delivery", "shipping", "membership", "points", "help"]
 
-        technical_hits = sum(1 for kw in technical_kws if kw in msg)
-        billing_hits = sum(1 for kw in billing_kws if kw in msg)
-        general_hits = sum(1 for kw in general_kws if kw in msg)
+        technical_hits = sum(1 for kw in technical_kws if keyword_matches(kw, msg))
+        billing_hits = sum(1 for kw in billing_kws if keyword_matches(kw, msg))
+        general_hits = sum(1 for kw in general_kws if keyword_matches(kw, msg))
 
         scores[AgentType.TECHNICAL] += min(0.45, technical_hits * 0.18)
         scores[AgentType.BILLING] += min(0.45, billing_hits * 0.18)
@@ -538,22 +543,23 @@ class AgentOrchestrator:
 
     def _collaboration_targets(self, req: Request) -> List[AgentType]:
         """
-        判断是否需要多个 Agent 并行协作。
+        Decide whether several agents should collaborate in parallel.
 
-        意图识别通常只返回一个主意图；这里用领域关键词补充检测复合问题，
-        例如"登录报错且被重复扣款"需要技术和账单 Agent 同时处理。
+        Intent recognition usually returns a single primary intent, so domain keywords
+        fill the gap for compound questions -- "login error and charged twice" needs
+        the technical and billing agents at the same time.
         """
         msg = req.message.lower()
         targets: List[AgentType] = []
 
-        technical_kws = ["崩溃", "报错", "error", "crash", "无法登录", "登录失败", "500", "401"]
-        billing_kws = ["退款", "扣款", "发票", "账单", "支付", "订阅", "refund", "invoice"]
+        technical_kws = ["crash", "error", "bug", "cannot log in", "can't log in", "login failed", "500", "401"]
+        billing_kws = ["refund", "charge", "charged", "invoice", "bill", "billing", "payment", "subscription"]
 
         if req.intent in (
             IntentCategory.TECHNICAL,
             IntentCategory.TECHNICAL_LOGIN,
             IntentCategory.TECHNICAL_CRASH,
-        ) or any(kw in msg for kw in technical_kws):
+        ) or any(keyword_matches(kw, msg) for kw in technical_kws):
             targets.append(AgentType.TECHNICAL)
         if req.intent in (
             IntentCategory.BILLING,
@@ -562,16 +568,16 @@ class AgentOrchestrator:
             IntentCategory.REFUND,
             IntentCategory.INVOICE,
             IntentCategory.PAYMENT_ISSUE,
-        ) or any(kw in msg for kw in billing_kws):
+        ) or any(keyword_matches(kw, msg) for kw in billing_kws):
             targets.append(AgentType.BILLING)
 
-        # 保持顺序去重，并只返回当前有实例的 Agent 类型。
+        # Deduplicate while preserving order, keeping only types that have instances.
         deduped = list(dict.fromkeys(targets))
         return [agent_type for agent_type in deduped if self._pool.get(agent_type)]
 
     @staticmethod
     def _needs_clarification(req: Request) -> bool:
-        """低置信度且无明确意图时，先追问，避免误路由。"""
+        """On low confidence with no clear intent, ask a follow-up rather than misroute."""
         if req.intent != IntentCategory.OTHER:
             return False
         text = (req.message or "").strip()
@@ -581,8 +587,8 @@ class AgentOrchestrator:
 
     def _best_agent(self, agent_type: AgentType) -> Optional[BaseAgent]:
         """
-        性能路由：从同类 Agent 中选 routing_score() 最高的。
-        这是"基于在线表现动态调整路由"的核心。
+        Performance routing: pick the highest routing_score() among agents of a type.
+        This is the heart of adjusting routing from live performance.
         """
         agents = self._pool.get(agent_type, [])
         if not agents:
@@ -590,29 +596,29 @@ class AgentOrchestrator:
         return max(agents, key=lambda a: a.stats.routing_score())
 
     async def _execute(self, req: Request, agent_type: AgentType) -> AgentResponse:
-        """执行 Agent，失败时降级到 GeneralAgent。"""
+        """Run an agent, degrading to GeneralAgent on failure."""
         agent = self._best_agent(agent_type)
         if agent is None:
             agent = self._best_agent(AgentType.GENERAL)
         if agent is None:
             return AgentResponse(
                 agent_type=AgentType.GENERAL,
-                content="服务暂时不可用，请稍后重试。",
+                content="The service is temporarily unavailable. Please try again shortly.",
                 success=False,
             )
 
         response = await agent.handle(req)
 
-        # 专属 Agent 失败时降级到 GeneralAgent
+        # Degrade to GeneralAgent when the dedicated agent fails
         if not response.success and agent_type != AgentType.GENERAL:
-            logger.warning(f"{agent_type.value} 失败，降级到 GeneralAgent")
+            logger.warning(f"{agent_type.value} failed, degrading to GeneralAgent")
             fallback = self._best_agent(AgentType.GENERAL)
             if fallback:
                 response = await fallback.handle(req)
 
         return response
 
-    # ── 统计（供 Monitor 读取）────────────────────────────────────────────────
+    # ── Statistics (read by the Monitor) ──────────────────────────────────────
 
     def get_stats(self) -> Dict[str, Any]:
         result = {}
@@ -630,9 +636,9 @@ class AgentOrchestrator:
 
     def update_routing_penalties(self, penalties: Dict[str, float]) -> None:
         """
-        接收 Monitor 的在线表现反馈，动态调整路由惩罚项。
+        Take live performance feedback from the Monitor and adjust routing penalties.
 
-        penalties 的 key 使用 get_stats() 中的 agent key，例如 technical_0。
+        Keys in `penalties` are the agent keys from get_stats(), e.g. technical_0.
         """
         for agent_type, agents in self._pool.items():
             for i, agent in enumerate(agents):

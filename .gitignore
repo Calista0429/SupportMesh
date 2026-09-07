@@ -1,4 +1,4 @@
-# 仓库根目录只放子项目，这里仅拦截操作系统产生的垃圾文件。
-# 后端自身的忽略规则见 backend/.gitignore
+# The repository root only holds subprojects; this file just blocks OS junk.
+# The backend's own ignore rules live in backend/.gitignore
 .DS_Store
 Thumbs.db

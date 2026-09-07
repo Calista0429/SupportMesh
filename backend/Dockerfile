@@ -1,7 +1,7 @@
-# EchoMind 智能客服系统 — Docker 多阶段构建
-# 目标：生产镜像尽量精简，开发镜像包含调试工具
+# SupportMesh customer-service system -- multi-stage Docker build
+# Goal: keep the production image lean; the development image carries debug tooling
 
-# ── 阶段 1：基础环境 ──────────────────────────────────────────────────────────
+# ── Stage 1: base environment ─────────────────────────────────────────────────
 FROM python:3.12-slim AS base
 
 WORKDIR /app
@@ -12,19 +12,19 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONPATH=/app
 
-# curl 用于健康检查；不再需要 gcc/g++（已移除本地 ML 模型）
+# curl is for the health check; gcc/g++ are no longer needed (the local ML model is gone)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# ── 阶段 2：安装 Python 依赖 ──────────────────────────────────────────────────
+# ── Stage 2: install Python dependencies ──────────────────────────────────────
 FROM base AS dependencies
 
 COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
-# 预下载 ChromaDB 内置的 ONNX embedding 模型（~79MB），避免运行时下载超时
+# Pre-download ChromaDB's built-in ONNX embedding model (~79MB) so the first request does not time out
 RUN mkdir -p /root/.cache/chroma/onnx_models/all-MiniLM-L6-v2 && \
     curl -L --retry 3 --retry-delay 5 -o /root/.cache/chroma/onnx_models/all-MiniLM-L6-v2/onnx.tar.gz \
     https://chroma-onnx-models.s3.amazonaws.com/all-MiniLM-L6-v2/onnx.tar.gz && \
@@ -32,25 +32,25 @@ RUN mkdir -p /root/.cache/chroma/onnx_models/all-MiniLM-L6-v2 && \
     tar -xzf onnx.tar.gz && \
     rm onnx.tar.gz
 
-# ── 阶段 3：生产镜像 ──────────────────────────────────────────────────────────
+# ── Stage 3: production image ─────────────────────────────────────────────────
 FROM base AS production
 
-# 非 root 用户运行。先创建用户，后续 COPY 直接带 owner，避免 chown -R 复制出额外大层。
-RUN useradd -m -u 1000 echomind
+# Run as a non-root user. Create the user first so later COPYs carry the owner, avoiding a large extra layer from chown -R.
+RUN useradd -m -u 1000 supportmesh
 
-# 从依赖阶段复制已安装的包
+# Copy the installed packages from the dependencies stage
 COPY --from=dependencies /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=dependencies /usr/local/bin /usr/local/bin
-# 复制预下载的 ONNX 模型缓存
-COPY --from=dependencies --chown=echomind:echomind /root/.cache/chroma /home/echomind/.cache/chroma
+# Copy the pre-downloaded ONNX model cache
+COPY --from=dependencies --chown=supportmesh:supportmesh /root/.cache/chroma /home/supportmesh/.cache/chroma
 
-# 复制应用代码
-COPY --chown=echomind:echomind . .
+# Copy the application code
+COPY --chown=supportmesh:supportmesh . .
 
-# 创建必要目录，只调整运行期需要写入的目录权限，避免递归 chown 整个应用。
+# Create the directories the app needs, adjusting permissions only where it writes at runtime, rather than chowning the whole app.
 RUN mkdir -p /app/data/chroma /app/logs /app/config && \
-    chown echomind:echomind /app/data /app/data/chroma /app/logs /app/config
-USER echomind
+    chown supportmesh:supportmesh /app/data /app/data/chroma /app/logs /app/config
+USER supportmesh
 
 EXPOSE 8000
 
@@ -59,7 +59,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 
 CMD ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
-# ── 阶段 4：开发镜像 ──────────────────────────────────────────────────────────
+# ── Stage 4: development image ────────────────────────────────────────────────
 FROM dependencies AS development
 
 COPY . .
