@@ -1,0 +1,23 @@
+# SupportMesh dependencies
+
+# ── AI / LLM ──────────────────────────────────────────────────────────────────
+anthropic==0.40.0          # LLM calls; the intent embedding path uses a remote client when available, local fallback otherwise
+
+# ── Web framework ─────────────────────────────────────────────────────────────
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+python-multipart==0.0.12    # FastAPI file-upload support
+
+# ── Storage ───────────────────────────────────────────────────────────────────
+redis==5.2.1
+chromadb==0.5.23           # vector database (long-term memory)
+
+# ── Monitoring ────────────────────────────────────────────────────────────────
+prometheus-client==0.21.1
+
+# ── HTTP client ───────────────────────────────────────────────────────────────
+httpx==0.28.1              # webhook alerts in monitor/performance_monitor.py
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+python-dotenv==1.0.1
