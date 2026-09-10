@@ -24,7 +24,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from anthropic import AsyncAnthropic
 
@@ -275,6 +275,14 @@ class AgentOrchestrator:
             AgentType.TECHNICAL: [TechnicalAgent(client, model, skill_manager)],
             AgentType.BILLING:   [BillingAgent(client, model, skill_manager)],
         }
+
+        # Called after every agent call with (agent_key, latency_ms). The Monitor
+        # subscribes here to record each request's own latency.
+        self._latency_listeners: List[Callable[[str, float], None]] = []
+
+    def add_latency_listener(self, listener: Callable[[str, float], None]) -> None:
+        """Subscribe to the latency of every agent call, keyed like get_stats()."""
+        self._latency_listeners.append(listener)
 
     def set_skill_manager(self, skill_manager: Optional[Any]) -> None:
         """Swap the SkillManager reference, for runtime reloads or test doubles."""
@@ -608,6 +616,7 @@ class AgentOrchestrator:
             )
 
         response = await agent.handle(req)
+        self._report_latency(agent, response)
 
         # Degrade to GeneralAgent when the dedicated agent fails
         if not response.success and agent_type != AgentType.GENERAL:
@@ -615,8 +624,26 @@ class AgentOrchestrator:
             fallback = self._best_agent(AgentType.GENERAL)
             if fallback:
                 response = await fallback.handle(req)
+                self._report_latency(fallback, response)
 
         return response
+
+    def _report_latency(self, agent: BaseAgent, response: AgentResponse) -> None:
+        key = self._agent_key(agent)
+        for listener in self._latency_listeners:
+            try:
+                listener(key, response.latency_ms)
+            except Exception as ex:
+                # Monitoring must never break request handling.
+                logger.warning(f"Latency listener failed: {ex}")
+
+    def _agent_key(self, agent: BaseAgent) -> str:
+        """The agent's key as used by get_stats(), e.g. technical_0."""
+        for agent_type, agents in self._pool.items():
+            for i, candidate in enumerate(agents):
+                if candidate is agent:
+                    return f"{agent_type.value}_{i}"
+        return f"{agent.agent_type.value}_unknown"
 
     # ── Statistics (read by the Monitor) ──────────────────────────────────────
 

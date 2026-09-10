@@ -146,6 +146,11 @@ class PerformanceMonitor:
         self._prom: Dict[str, Any] = {}
         if prometheus_port:
             self._setup_prometheus(prometheus_port)
+            # Record each request's own latency as it completes, rather than
+            # sampling an average on the collection timer.
+            subscribe = getattr(orchestrator, "add_latency_listener", None)
+            if subscribe:
+                subscribe(self._observe_agent_latency)
 
     def _setup_prometheus(self, port: int) -> None:
         self._prom = {
@@ -159,6 +164,9 @@ class PerformanceMonitor:
         }
         start_http_server(port)
         logger.info(f"Prometheus started on :{port}")
+
+    def _observe_agent_latency(self, agent_key: str, latency_ms: float) -> None:
+        self._prom["agent_latency_seconds"].labels(agent=agent_key).observe(latency_ms / 1000)
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -217,7 +225,6 @@ class PerformanceMonitor:
             # Prometheus
             if "agent_success_rate" in self._prom:
                 self._prom["agent_success_rate"].labels(agent=agent_key).set(sr)
-                self._prom["agent_latency_seconds"].labels(agent=agent_key).observe(ms / 1000)
 
             routing_penalties[agent_key] = self._routing_penalty(sr, ms)
 
