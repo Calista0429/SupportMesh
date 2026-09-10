@@ -13,7 +13,6 @@ REGISTRY=""  # Set to registry.example.com/ if the image lives in a private regi
 
 # Default port mapping
 API_PORT=8000
-PROMETHEUS_PORT=9090
 
 # Default volume mapping
 DATA_DIR="./data"
@@ -149,7 +148,7 @@ run_container() {
 
     # Base configuration
     local image_tag="${REGISTRY}${IMAGE_NAME}:${VERSION}"
-    local default_ports="-p ${API_PORT}:8000 -p ${PROMETHEUS_PORT}:9090"
+    local default_ports="-p ${API_PORT}:8000"
     local default_volumes="-v ${DATA_DIR}:/app/data -v ${LOGS_DIR}:/app/logs -v ${CONFIG_DIR}:/app/config"
 
     # Adjust configuration per mode
@@ -202,7 +201,7 @@ run_container() {
     if [ $? -eq 0 ]; then
         print_info "✓ Container started"
         print_info "API: http://localhost:${API_PORT}"
-        print_info "Prometheus: http://localhost:${PROMETHEUS_PORT}"
+        print_info "Metrics: http://localhost:${API_PORT}/metrics"
 
         if [ "$detach" = true ]; then
             print_info "Container is running in the background"
