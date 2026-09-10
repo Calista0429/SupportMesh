@@ -31,6 +31,16 @@ logger = logging.getLogger(__name__)
 # short of a slow LLM call -- so the buckets are spelled out.
 AGENT_LATENCY_BUCKETS_S = (0.5, 1, 2, 5, 10, 20, 30, 60)
 
+# Business metrics are created at import time, as prometheus_client expects, so
+# they are always registered and served on the API's /metrics with no setup.
+AGENT_SUCCESS_RATE = Gauge("agent_success_rate", "Agent success rate", ["agent"])
+AGENT_LATENCY_SECONDS = Histogram(
+    "agent_latency_seconds", "Agent latency in seconds", ["agent"],
+    buckets=AGENT_LATENCY_BUCKETS_S,
+)
+TOOL_SUCCESS_RATE = Gauge("tool_success_rate", "Tool success rate", ["tool"])
+REQUESTS_TOTAL = Counter("requests_total", "Total requests")
+
 
 # ── Data structures ───────────────────────────────────────────────────────────
 
@@ -129,7 +139,7 @@ class PerformanceMonitor:
         tool_manager,
         interval_s:       float = 10.0,
         webhook_url:      Optional[str] = None,
-        prometheus_port:  Optional[int] = None,   # None = do not start it
+        prometheus_port:  Optional[int] = None,   # None = no extra exporter port
     ):
         self._orchestrator = orchestrator
         self._tool_manager = tool_manager
@@ -142,31 +152,20 @@ class PerformanceMonitor:
         self._active       = False
         self._task:        Optional[asyncio.Task] = None
 
-        # Prometheus metrics (optional)
-        self._prom: Dict[str, Any] = {}
-        if prometheus_port:
-            self._setup_prometheus(prometheus_port)
-            # Record each request's own latency as it completes, rather than
-            # sampling an average on the collection timer.
-            subscribe = getattr(orchestrator, "add_latency_listener", None)
-            if subscribe:
-                subscribe(self._observe_agent_latency)
+        # Record each request's own latency as it completes, rather than
+        # sampling an average on the collection timer.
+        subscribe = getattr(orchestrator, "add_latency_listener", None)
+        if subscribe:
+            subscribe(self._observe_agent_latency)
 
-    def _setup_prometheus(self, port: int) -> None:
-        self._prom = {
-            "agent_success_rate": Gauge("agent_success_rate", "Agent success rate", ["agent"]),
-            "agent_latency_seconds": Histogram(
-                "agent_latency_seconds", "Agent latency in seconds", ["agent"],
-                buckets=AGENT_LATENCY_BUCKETS_S,
-            ),
-            "tool_success_rate":  Gauge("tool_success_rate", "Tool success rate", ["tool"]),
-            "requests_total":     Counter("requests_total", "Total requests"),
-        }
-        start_http_server(port)
-        logger.info(f"Prometheus started on :{port}")
+        # Optional extra port serving the same metrics. Prometheus scrapes
+        # /metrics on the API port, so collection does not depend on it.
+        if prometheus_port:
+            start_http_server(prometheus_port)
+            logger.info(f"Prometheus exporter also listening on :{prometheus_port}")
 
     def _observe_agent_latency(self, agent_key: str, latency_ms: float) -> None:
-        self._prom["agent_latency_seconds"].labels(agent=agent_key).observe(latency_ms / 1000)
+        AGENT_LATENCY_SECONDS.labels(agent=agent_key).observe(latency_ms / 1000)
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -223,8 +222,7 @@ class PerformanceMonitor:
             self._check_threshold("agent_avg_ms", ms, agent_key)
 
             # Prometheus
-            if "agent_success_rate" in self._prom:
-                self._prom["agent_success_rate"].labels(agent=agent_key).set(sr)
+            AGENT_SUCCESS_RATE.labels(agent=agent_key).set(sr)
 
             routing_penalties[agent_key] = self._routing_penalty(sr, ms)
 
@@ -237,8 +235,7 @@ class PerformanceMonitor:
             self._check_threshold("tool_success_rate", sr, tool_name)
             self._check_threshold("tool_avg_ms", ms, tool_name)
 
-            if "tool_success_rate" in self._prom:
-                self._prom["tool_success_rate"].labels(tool=tool_name).set(sr)
+            TOOL_SUCCESS_RATE.labels(tool=tool_name).set(sr)
 
             # Repeated failures -> emit a concrete suggestion
             if cf >= 3:

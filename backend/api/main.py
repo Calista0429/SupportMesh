@@ -157,7 +157,8 @@ async def lifespan(app: FastAPI):
         fallback=knowledge_fallback,
     ))
 
-    # Performance monitoring (Prometheus optional)
+    # Performance monitoring. Metrics are always on; PROMETHEUS_PORT only adds an
+    # extra exporter port, since Prometheus scrapes /metrics on the API port.
     prom_port = int(os.getenv("PROMETHEUS_PORT", "0")) or None
     _monitor = PerformanceMonitor(
         orchestrator=_orchestrator,
