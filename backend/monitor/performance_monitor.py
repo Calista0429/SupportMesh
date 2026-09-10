@@ -27,6 +27,10 @@ from prometheus_client import Counter, Gauge, Histogram, start_http_server
 
 logger = logging.getLogger(__name__)
 
+# Prometheus measures durations in seconds, and its default buckets stop at 10s --
+# short of a slow LLM call -- so the buckets are spelled out.
+AGENT_LATENCY_BUCKETS_S = (0.5, 1, 2, 5, 10, 20, 30, 60)
+
 
 # ── Data structures ───────────────────────────────────────────────────────────
 
@@ -146,7 +150,10 @@ class PerformanceMonitor:
     def _setup_prometheus(self, port: int) -> None:
         self._prom = {
             "agent_success_rate": Gauge("agent_success_rate", "Agent success rate", ["agent"]),
-            "agent_latency_ms":   Histogram("agent_latency_ms", "Agent latency", ["agent"]),
+            "agent_latency_seconds": Histogram(
+                "agent_latency_seconds", "Agent latency in seconds", ["agent"],
+                buckets=AGENT_LATENCY_BUCKETS_S,
+            ),
             "tool_success_rate":  Gauge("tool_success_rate", "Tool success rate", ["tool"]),
             "requests_total":     Counter("requests_total", "Total requests"),
         }
@@ -210,7 +217,7 @@ class PerformanceMonitor:
             # Prometheus
             if "agent_success_rate" in self._prom:
                 self._prom["agent_success_rate"].labels(agent=agent_key).set(sr)
-                self._prom["agent_latency_ms"].labels(agent=agent_key).observe(ms)
+                self._prom["agent_latency_seconds"].labels(agent=agent_key).observe(ms / 1000)
 
             routing_penalties[agent_key] = self._routing_penalty(sr, ms)
 
