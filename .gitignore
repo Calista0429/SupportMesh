@@ -2,3 +2,9 @@
 # The backend's own ignore rules live in backend/.gitignore
 .DS_Store
 Thumbs.db
+
+# Local run artifacts: logs and the redirected HOME holding ChromaDB's model cache
+logs/
+.home/
+# Local launch config: machine-specific absolute paths
+.claude/launch.json
