@@ -1,18 +1,18 @@
 {
-  "timestamp": "2026-05-31T07:06:07.150090",
+  "timestamp": "2026-09-13T15:51:29.952017",
   "total": 8,
   "passed": 8,
   "pass_rate": 1.0,
   "avg_scores": {
-    "relevance": 1.0,
-    "accuracy": 0.9786,
-    "completeness": 0.8,
-    "helpfulness": 0.8857,
+    "relevance": 0.9143,
+    "accuracy": 0.95,
+    "completeness": 0.7,
+    "helpfulness": 0.8143,
     "intent_accuracy": 1.0
   },
   "regressions": [],
   "recommendations": [
-    "所有指标均达标，继续保持"
+    "Low completeness: the agent may be stopping early; ask for a complete solution in the prompt"
   ],
   "results": [
     {
@@ -22,66 +22,87 @@
         "accuracy": 1.0,
         "macro_f1": 1.0
       },
-      "detail": "准确率 100.0%，Macro-F1 1.000",
+      "detail": "accuracy 100.0%, Macro-F1 1.000",
       "metadata": {
-        "total": 8,
-        "correct": 8,
+        "total": 11,
+        "correct": 11,
         "cases": [
           {
-            "message": "我的订单什么时候到？",
-            "expected": "query",
-            "predicted": "query",
-            "confidence": 0.95,
-            "reasoning": "用户询问订单到达时间，属于查询类意图。"
+            "message": "When will my parcel arrive?",
+            "expected": "logistics",
+            "predicted": "logistics",
+            "confidence": 0.8825,
+            "reasoning": "The user is asking about the arrival time of their parcel, which directly relates to shipping and delivery logistics."
           },
           {
-            "message": "帮我取消订单",
+            "message": "Please cancel my order",
             "expected": "request",
             "predicted": "request",
-            "confidence": 1.0,
-            "reasoning": "用户明确要求执行取消订单的操作，属于请求类意图。"
+            "confidence": 0.8825,
+            "reasoning": "The user is explicitly asking to cancel their order, which is a direct request for an action."
           },
           {
-            "message": "你们服务太差了！",
+            "message": "Your service is terrible!",
             "expected": "complaint",
             "predicted": "complaint",
-            "confidence": 0.95,
-            "reasoning": "用户直接表达了对服务的不满，属于投诉类意图。"
+            "confidence": 0.8825,
+            "reasoning": "The user is expressing dissatisfaction with the service, which is a complaint."
           },
           {
-            "message": "应用一直报500错误",
-            "expected": "technical",
-            "predicted": "technical",
-            "confidence": 0.95,
-            "reasoning": "用户报告应用持续出现500错误，属于技术问题"
+            "message": "The app keeps throwing a 500 error",
+            "expected": "technical_crash",
+            "predicted": "technical_crash",
+            "confidence": 0.6699999999999999,
+            "reasoning": "The message reports a 500 server error from the app, which is a technical failure/crash-type issue rather than a login or billing problem."
           },
           {
-            "message": "为什么扣了两次款？",
-            "expected": "billing",
-            "predicted": "billing",
-            "confidence": 0.95,
-            "reasoning": "用户询问扣款问题，明确涉及账单费用，符合billing意图"
+            "message": "Why was I charged twice?",
+            "expected": "payment_issue",
+            "predicted": "payment_issue",
+            "confidence": 0.8825,
+            "reasoning": "The user is asking about being charged twice, which indicates a duplicate payment problem."
           },
           {
-            "message": "我要投诉，转人工！",
-            "expected": "escalation",
-            "predicted": "escalation",
-            "confidence": 0.95,
-            "reasoning": "用户明确要求投诉并转人工，符合升级处理意图"
+            "message": "Get me a human agent",
+            "expected": "human_handoff",
+            "predicted": "human_handoff",
+            "confidence": 0.9079999999999999,
+            "reasoning": "The user explicitly requests to be connected to a human agent."
           },
           {
-            "message": "你好",
+            "message": "Hello",
             "expected": "greeting",
             "predicted": "greeting",
-            "confidence": 1.0,
-            "reasoning": "用户消息为'你好'，与示例中问候意图完全一致。"
+            "confidence": 0.9249999999999999,
+            "reasoning": "The user simply says 'Hello', which is a standard greeting with no other request."
           },
           {
-            "message": "修改我的邮箱地址",
+            "message": "Change my email address",
             "expected": "account",
             "predicted": "account",
-            "confidence": 0.95,
-            "reasoning": "用户明确要求修改邮箱地址，属于账户信息变更操作。"
+            "confidence": 0.8825,
+            "reasoning": "The user wants to update their email address, which is a profile/account management request."
+          },
+          {
+            "message": "Please issue an invoice",
+            "expected": "invoice",
+            "predicted": "invoice",
+            "confidence": 0.9249999999999999,
+            "reasoning": "The user explicitly requests an invoice to be issued, matching the invoice intent."
+          },
+          {
+            "message": "How long until my refund arrives?",
+            "expected": "refund",
+            "predicted": "refund",
+            "confidence": 0.8825,
+            "reasoning": "The user is asking about the timeline for receiving their refund, which directly relates to refund status."
+          },
+          {
+            "message": "Login keeps returning 401",
+            "expected": "technical_login",
+            "predicted": "technical_login",
+            "confidence": 0.8825,
+            "reasoning": "The message describes a login authentication failure (401 error), which matches the technical_login intent."
           }
         ]
       }
@@ -90,18 +111,18 @@
       "test_id": "dialog_0",
       "passed": true,
       "scores": {
-        "relevance": 1.0,
-        "accuracy": 1.0,
+        "relevance": 0.9,
+        "accuracy": 0.9,
         "completeness": 0.6,
-        "helpfulness": 0.7,
-        "overall": 0.825
+        "helpfulness": 0.75,
+        "overall": 0.7875
       },
-      "detail": "Q: 我的订单 #12345 还没到，已经超时了... → 综合评分 0.825",
+      "detail": "Q: My order #12345 has not arrive... -> overall score 0.787",
       "metadata": {
-        "question": "我的订单 #12345 还没到，已经超时了",
-        "response": "您好，非常抱歉给您带来不便。我查一下您的订单 #12345 的物流情况。请稍等。请问您方便提供一下联系方式或收货地址吗？这样我可以更高效地核实问题。",
+        "question": "My order #12345 has not arrived and it is overdue",
+        "response": "Thanks for reaching out, and sorry to hear your order is late — I understand that's frustrating.\n\nTo look into this, could you confirm a couple of details:\n1. The order date and the product or service name\n2. The email address or phone number used on the order (last four digits of the phone is fine)\n\nOnce I have those, I can check the status and let you know the next step. If it turns out the delivery needs a carrier trace, I'll hand it to the right team and give you a summary so you don't have to repeat yourself.\n\nIs there anything else about this order I should know — for example, whether you've already received any tracking updates?",
         "agent_type": "general",
-        "intent": "complaint",
+        "intent": "logistics",
         "turn": 0,
         "conv_id": "eval_0",
         "judge_failed": false,
@@ -114,16 +135,16 @@
       "scores": {
         "relevance": 1.0,
         "accuracy": 1.0,
-        "completeness": 1.0,
-        "helpfulness": 1.0,
-        "overall": 1.0
+        "completeness": 0.8,
+        "helpfulness": 0.9,
+        "overall": 0.925
       },
-      "detail": "Q: 应用登录一直报错 401... → 综合评分 1.000",
+      "detail": "Q: The app keeps failing to log i... -> overall score 0.925",
       "metadata": {
-        "question": "应用登录一直报错 401",
-        "response": "收到您关于应用登录报错 401 的问题。401 状态码通常表示**身份验证失败**，即用户身份未被系统认可或凭证无效。\n\n为了帮助您快速排查，请按以下步骤操作：\n\n### 第一步：基础排查（前端/用户侧）\n\n1.  **检查账号密码是否正确**\n    -   确认是否输入了正确的用户名/邮箱和密码。\n    -   注意是否开启了**大小写锁定键（Caps Lock）** 或使用了全角字符（例如 “Ａ” 而非 “A”）。\n    -   尝试在浏览器无痕/隐私窗口登录，排除缓存干扰。\n2.  **清除浏览器缓存和 Cookie**\n    -   401 也可能由过期的 Token 或 Session 引起。清除后重新尝试登录。\n3.  **确认网络环境**\n    -   如果使用公司内网或 VPN，请确认网络连接正常，且没有触发防火墙或代理拦截。\n\n### 第二步：进阶排查（若第一步无效）\n\n如果基础操作后问题依旧，需进一步判断：\n\n1.  **检查请求的 API 地址**\n    -   确认前端请求的登录接口 URL 与后端配置的完全一致（包括协议、域名、端口）。\n2.  **查看请求头与 Token**\n    -   使用浏览器开发者工具（F12 > Network 标签），找到登录失败的请求。\n    -   查看 **Response Headers** 中的 `WWW-Authenticate` 字段，它会提示具体的认证方案（如 Bearer / Basic / Digest）。\n    -   查看是否携带了正确的 `Authorization` 头，或是否因 Token 过期/无效被后端拒绝。\n\n### 第三步：后台/服务器侧（需更高权限）\n\n> **说明**：以下操作需要**系统管理员或后台运维权限**，如果您是普通用户，请将以下信息反馈给技术负责人。\n\n1.  **检查后端服务状态**\n    -   登录服务器，查看应用服务（如 Nginx、Tomcat、Node.js 等）是否正常运行。\n    -   检查认证服务（如 OAuth、LDAP、JWT 签发服务）是否能正常响应。\n2.  **查看应用日志**\n    -   搜索关键词 `401` 或 `Unauthorized`，确认具体报错信息。\n    -   常见原因：\n        -   认证密钥（Secret Key）在环境变量或配置文件中错误。\n        -   用户数据库连接异常或用户记录被锁定/禁用。\n        -   Token 黑名单机制误判了正常请求。\n3.  **检查白名单/IP 限制**\n    -   确认服务器是否对特定 IP 段或地区做了访问限制。\n\n---\n\n### 当前最推荐您尝试的操作：\n\n1.  **立即重置密码**（如果是个人账号问题）。\n2.  **联系管理员确认账号状态**（未激活、被锁定、已过期）。\n3.  **提供以下信息给技术支持**，以便快速定位：\n    -   报错时间的完整截图（含浏览器控制台 Network 面板）。\n    -   完整错误日志或响应体内容（例如：`{\"error\":\"invalid_token\"}`）。\n\n若以上步骤仍无法解决，请提供**更详细的错误信息**（如其他用户是否正常、系统版本变动等），我会为您做更深层分析。",
+        "question": "The app keeps failing to log in with a 401",
+        "response": "I can help you troubleshoot this. Let me confirm the symptom first so we're working on the right problem:\n\n**Restating the issue:** Users (or you) are getting a **401 Unauthorized** when trying to log into the app, and it fails consistently.\n\nA 401 usually means the request reached the server but the credentials or session were rejected — so this is most often an authentication problem, not a server outage. But I need a few details before naming a cause.\n\n**Please provide:**\n1. **Who is affected** — one user, some users, or everyone? (This tells us whether it's account-specific or system-wide.)\n2. **When it started** and whether it's **100% reproducible** or intermittent.\n3. **The exact error** — full message, error code, and any `request_id` if shown.\n4. **Where it fails** — web browser, mobile app, or API? Include browser/OS/app version.\n5. **Recent changes** — app update, password change, new device, config change, or token/key rotation?\n\nWhile you gather that, here are the **low-risk checks to run now** (in order):\n\n1. **Confirm it's a 401, not a 403** — 401 = authentication (who you are); 403 = authorization (what you're allowed to do). They have different fixes.\n2. **Check the login method** — is this a username/password login, SSO/third-party sign-in, or API token? Each fails differently.\n3. **If a token/API key is involved** — confirm it hasn't expired, that the timestamp/signature is correct, and that you're sending it in the right header.\n4. **Try one known-good account** — if that account works, it's account-specific; if it also fails, it's systemic.\n5. **Clear session/cache and retry** — a stale or corrupted token often causes a 401.\n\n**How you'll know it's fixed:** the login returns a success response (2xx) and a valid session/token without the 401.\n\n**One important note:** Please **do not send me any passwords, verification codes, or full API keys.** A password reset or token re-issue is the safe path if credentials are the issue.\n\n**Escalation:** If this affects **all users**, involves an authentication service outage, or you see a spike in 401s across the platform, that needs a second-line/human engineer — tell me and I'll flag it.\n\nOnce you share the answers to items 1–5, I can narrow this to a specific root cause and give you exact next steps.",
         "agent_type": "technical",
-        "intent": "technical",
+        "intent": "technical_login",
         "turn": 0,
         "conv_id": "eval_1",
         "judge_failed": false,
@@ -134,18 +155,18 @@
       "test_id": "dialog_2",
       "passed": true,
       "scores": {
-        "relevance": 1.0,
+        "relevance": 0.9,
         "accuracy": 0.95,
-        "completeness": 0.8,
-        "helpfulness": 0.9,
-        "overall": 0.9125
+        "completeness": 0.7,
+        "helpfulness": 0.85,
+        "overall": 0.85
       },
-      "detail": "Q: 为什么这个月多扣了 50 块钱？... → 综合评分 0.912",
+      "detail": "Q: Why was I charged an extra $50... -> overall score 0.850",
       "metadata": {
-        "question": "为什么这个月多扣了 50 块钱？",
-        "response": "您好，我理解您对账单金额变动的疑问。这50元可能来自以下原因：\n\n1. **订阅服务调整**：请检查是否有新增的会员服务（如云存储扩容、增值功能）或试用期结束转为付费。\n2. **基础费用变更**：部分套餐可能因促销到期或汇率波动产生临时调整。\n3. **一次性费用**：例如超量使用费、自动续费的代金券抵扣失效等。\n\n建议您提供以下信息以便进一步分析：\n- 账单上的具体项目名称\n- 扣款时间范围\n- 账户绑定的服务类型\n\n如果您需要正式核查或申请退款，需由人工客服调取后台记录。请点击“转人工”并提供账单截图，我会帮您转接处理。",
+        "question": "Why was I charged an extra $50 this month?",
+        "response": "I can help you look into that. First, though, I'll need a bit more information to identify what that $50 charge actually is.\n\nCould you provide:\n\n- **The order number or transaction ID** for the extra charge\n- **The payment date and method** (card, PayPal, bank transfer, direct debit, or account balance)\n- **The amount and currency** as it appears on your statement\n- **Your usual monthly amount**, so I can see what changed\n- Whether a **coupon, credit, or account balance** was involved\n\nA few common reasons an extra $50 can appear:\n\n- A plan or subscription upgrade or a prorated mid-cycle change\n- A one-time add-on, overage, or usage charge\n- A separate order placed the same month\n- A failed payment being retried, or a duplicate charge\n- A promotional or discounted period ending, with the price reverting to standard\n- Tax or fee differences\n\nTwo important notes:\n\n- If you suspect a **double charge**, I'll need the time, amount, and payment method of **both** charges.\n- I **can't confirm the reason or promise any adjustment** until the transaction is verified. Anything that moves money — a refund, a bill adjustment, or voiding an invoice — requires human review.\n\nOnce you share the details above, I'll tell you what can be determined right away and what needs to go to finance for verification. It's also worth keeping your payment receipt handy.",
         "agent_type": "billing",
-        "intent": "billing",
+        "intent": "payment_issue",
         "turn": 0,
         "conv_id": "eval_2",
         "judge_failed": false,
@@ -156,18 +177,18 @@
       "test_id": "dialog_3",
       "passed": true,
       "scores": {
-        "relevance": 1.0,
-        "accuracy": 1.0,
-        "completeness": 1.0,
-        "helpfulness": 1.0,
-        "overall": 1.0
+        "relevance": 0.9,
+        "accuracy": 0.95,
+        "completeness": 0.6,
+        "helpfulness": 0.75,
+        "overall": 0.8
       },
-      "detail": "Q: 帮我把收货地址改成北京市朝阳区... → 综合评分 1.000",
+      "detail": "Q: Please change my delivery addr... -> overall score 0.800",
       "metadata": {
-        "question": "帮我把收货地址改成北京市朝阳区",
-        "response": "好的，已为您更新收货地址为：北京市朝阳区。如需进一步修改，请随时告知。",
+        "question": "Please change my delivery address to 221B Baker Street, London",
+        "response": "I can't update your delivery address from here — I don't have access to order or account details, so I'm not able to make changes like that.\n\nFor an address change, you'll want to contact the specialist team who handles orders, since it often depends on whether the order has already shipped. It helps to have your order number ready.\n\nWould you like me to point you toward a handoff to the orders team?",
         "agent_type": "general",
-        "intent": "request",
+        "intent": "logistics",
         "turn": 0,
         "conv_id": "eval_3",
         "judge_failed": false,
@@ -178,18 +199,18 @@
       "test_id": "dialog_4_turn_0",
       "passed": true,
       "scores": {
-        "relevance": 1.0,
-        "accuracy": 1.0,
-        "completeness": 0.6,
-        "helpfulness": 0.8,
-        "overall": 0.85
+        "relevance": 0.95,
+        "accuracy": 0.9,
+        "completeness": 0.75,
+        "helpfulness": 0.85,
+        "overall": 0.8625
       },
-      "detail": "Q: 你好，我想退款... → 综合评分 0.850",
+      "detail": "Q: Hello, I would like a refund... -> overall score 0.863",
       "metadata": {
-        "question": "你好，我想退款",
-        "response": "您好！请问您希望为哪一笔订单申请退款呢？我可以帮您查询和处理相关事宜。",
-        "agent_type": "general",
-        "intent": "request",
+        "question": "Hello, I would like a refund",
+        "response": "I can help you with a refund request. To check whether your order qualifies and to move this forward, I'll need a few details first:\n\n**Please provide:**\n- Your order number or transaction ID\n- The payment date and payment method (card, PayPal, bank transfer, direct debit, or account balance)\n- The amount charged and the currency\n- Whether a coupon or account balance was applied\n- Whether you've already used the service or received any digital goods\n\n**A few important points upfront:**\n\n- I'm not able to promise a refund or an arrival time until your order has been verified.\n- Refunds are based on the amount **actually paid** under our platform rules, not the listed price.\n- Orders involving **used services, digital goods, promotional pricing, enterprise contracts, or partial refunds** require **human review** — so any actual refund will need a person to approve and process it, not just me.\n\nOnce you share the details above, I'll be able to tell you what's determinable right now and what the next step would be.\n\nAlso, please keep your payment receipt handy — it may be needed during verification. And for your security, **never send a full card number, payment PIN, or verification code.**",
+        "agent_type": "billing",
+        "intent": "refund",
         "turn": 0,
         "conv_id": "eval_4",
         "judge_failed": false,
@@ -200,18 +221,18 @@
       "test_id": "dialog_4_turn_1",
       "passed": true,
       "scores": {
-        "relevance": 1.0,
+        "relevance": 0.9,
         "accuracy": 1.0,
-        "completeness": 0.8,
-        "helpfulness": 0.9,
-        "overall": 0.925
+        "completeness": 0.75,
+        "helpfulness": 0.85,
+        "overall": 0.875
       },
-      "detail": "Q: 订单号是 #12345... → 综合评分 0.925",
+      "detail": "Q: The order number is #12345... -> overall score 0.875",
       "metadata": {
-        "question": "订单号是 #12345",
-        "response": "好的，我已找到订单 #12345。请问您希望申请退款的原因是什么呢？我可以先帮您确认退款政策。",
-        "agent_type": "general",
-        "intent": "request",
+        "question": "The order number is #12345",
+        "response": "Thanks for the order number.\n\nI'll note it down: **Order #12345**\n\nBut that alone isn't enough for me to verify whether it qualifies for a refund. I still need the following details:\n\n- **Payment date and payment method** (card, PayPal, bank transfer, direct debit, or account balance)\n- **Amount charged and the currency**\n- Whether a **coupon or account balance** was applied\n- Whether you have **already used the service or received any digital goods**\n\nOnce you provide these, I can tell you what's determinable right now and what the next step would be.\n\nTwo reminders:\n\n- I can't promise a refund or a timeline until the order is verified.\n- Any actual refund will require **human review and approval** — I can't process it myself.\n\nAlso, please keep your payment receipt handy, and for your security, **never send a full card number, payment PIN, or verification code.**",
+        "agent_type": "billing",
+        "intent": "refund",
         "turn": 1,
         "conv_id": "eval_4",
         "judge_failed": false,
@@ -222,18 +243,18 @@
       "test_id": "dialog_4_turn_2",
       "passed": true,
       "scores": {
-        "relevance": 1.0,
-        "accuracy": 0.9,
-        "completeness": 0.8,
-        "helpfulness": 0.9,
-        "overall": 0.9
+        "relevance": 0.85,
+        "accuracy": 0.95,
+        "completeness": 0.7,
+        "helpfulness": 0.75,
+        "overall": 0.8125
       },
-      "detail": "Q: 退款多久能到账？... → 综合评分 0.900",
+      "detail": "Q: How long until the refund arri... -> overall score 0.812",
       "metadata": {
-        "question": "退款多久能到账？",
-        "response": "通常退款会在您提交申请后的 **3-7个工作日** 内到账，具体时间取决于您的支付方式和银行处理速度。如果您有紧急情况，可以尝试联系支付平台加速处理。",
-        "agent_type": "general",
-        "intent": "query",
+        "question": "How long until the refund arrives?",
+        "response": "Thanks for following up. I have to be straight with you: I can't give you an arrival time yet, because we haven't actually established that a refund is coming.\n\nHere's where things stand:\n\n**What's confirmed so far:**\n- Only the order number: **#12345**\n\n**What's still missing before anything can be assessed:**\n- Payment date and payment method\n- Amount charged and currency\n- Whether a coupon or account balance was applied\n- Whether the service has been used or digital goods received\n\nUntil those are verified, there's no approved refund, and an arrival time would just be a guess.\n\n**Once a refund is approved,** the general timing boundaries are:\n\n- It usually returns to the **original payment method**.\n- Processing time **varies by provider** — it's not something we control once it's submitted.\n- Typical provider processing can take anywhere from a few business days to a full billing cycle, depending on whether it's a card, PayPal, bank transfer, or another route.\n- These are **estimates only, subject to how the payment provider processes it** — not a guaranteed date.\n\n**Two things worth flagging:**\n\n- If your order involves **used services, digital goods, promotional pricing, an enterprise contract, or a partial refund**, it requires **human review**, which adds time and could result in no refund at all, depending on the outcome.\n- Any actual refund needs **human review and approval** — I can't process or commit to one myself.\n\nSo the honest answer is: **there's no arrival estimate available yet**, and I won't invent one.\n\nIf you send the remaining details above, I can tell you what's determinable right now and what the next step would be. And please keep your payment receipt handy — and for your security, **never send a full card number, payment PIN, or verification code.**",
+        "agent_type": "billing",
+        "intent": "refund",
         "turn": 2,
         "conv_id": "eval_4",
         "judge_failed": false,
