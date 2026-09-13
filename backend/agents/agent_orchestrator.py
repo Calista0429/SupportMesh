@@ -34,6 +34,11 @@ from core.text_matching import keyword_matches
 
 logger = logging.getLogger(__name__)
 
+# This is an English-language product. Conversation memory replays earlier turns
+# back into the prompt, so without an explicit rule one stray non-English reply
+# keeps being mirrored by later ones.
+LANGUAGE_RULE = "Always answer in English, even if the user writes in another language."
+
 
 # ── Data structures ───────────────────────────────────────────────────────────
 
@@ -189,12 +194,13 @@ class BaseAgent:
 
     def _build_system_prompt(self, req: Request) -> str:
         """Splice hot-loaded Skills into the system prompt so business rules apply per request."""
+        base = f"{self.system_prompt}\n\n{LANGUAGE_RULE}"
         if self._skill_manager is None:
-            return self.system_prompt
+            return base
         skill_prompt = self._skill_manager.prompt_for(req.message, self.agent_type.value)
         if not skill_prompt:
-            return self.system_prompt
-        return f"{self.system_prompt}\n\n[Dynamic Skills]\n{skill_prompt}"
+            return base
+        return f"{base}\n\n[Dynamic Skills]\n{skill_prompt}"
 
     def _needs_escalation(self, content: str) -> bool:
         """Detect whether the agent is asking to escalate (simple keyword check)."""
