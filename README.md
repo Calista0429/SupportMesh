@@ -15,6 +15,46 @@ user request
   -> MemoryManager     writes the turn back and updates the user profile asynchronously
 ```
 
+## What it looks like
+
+Four real runs through the console. Each screenshot shows the question, the
+answer, and the trace panel on the right with the routing the backend chose.
+
+### A refund question
+
+`refund` intent, routed to the billing agent, answered from the knowledge base.
+The reply stays inside the refund policy -- the 7-day window, 1-3 business days
+of review, 5-7 business days to the original payment method -- and refuses to
+promise an outcome, because the billing Skill forbids it.
+
+![Refund question](docs/screenshots/01-refund-policy.png)
+
+### A login failure
+
+`technical_login` intent, routed to the technical agent. It explains what a 401
+actually means before listing low-risk checks, and asks for the details it needs
+rather than guessing.
+
+![Login failure](docs/screenshots/02-login-error.png)
+
+### A compound problem
+
+"I cannot log in and I was also charged twice." The router scored technical 0.93
+against billing 0.18 and sent it to the technical agent alone. Rather than
+answering the billing half anyway, the agent flags the duplicate charge as out of
+its scope and explains how to get it escalated -- the boundary comes from the
+technical Skill, not from the model's discretion.
+
+![Compound problem](docs/screenshots/03-compound-issue.png)
+
+### Memory across turns
+
+Two turns in one conversation. The customer supplies the order number only in the
+second message, and the reply carries it forward along with the order date,
+because the working memory from turn one is replayed into the prompt.
+
+![Memory across turns](docs/screenshots/04-multi-turn-memory.png)
+
 ## Layout
 
 ```text
