@@ -1,3 +1,8 @@
+<div align="right">
+  <a href="README.md"><img src="https://img.shields.io/badge/README-English-1A5276?style=for-the-badge" alt="English"></a>
+  <a href="README.ja.md"><img src="https://img.shields.io/badge/README-%E6%97%A5%E6%9C%AC%E8%AA%9E-lightgrey?style=for-the-badge" alt="日本語"></a>
+</div>
+
 # SupportMesh
 
 An enterprise customer-service system built on large language models. A request
